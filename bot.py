@@ -1,13 +1,14 @@
 import os, random, asyncio
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+PORT = int(os.getenv("PORT", 8080))
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
 verified_users = set()
 captcha_answers = {}
 
@@ -46,7 +47,6 @@ async def handle_captcha_click(query: types.CallbackQuery):
 @dp.message(F.chat.type == "private")
 async def forward_router(message: types.Message):
     user_id = message.from_user.id
-
     if user_id == ADMIN_ID:
         if message.reply_to_message and message.reply_to_message.forward_from:
             await message.copy_to(chat_id=message.reply_to_message.forward_from.id)
@@ -61,7 +61,19 @@ async def forward_router(message: types.Message):
     await message.forward(chat_id=ADMIN_ID)
     await message.reply("📨 消息已转交管理员。")
 
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
 async def main():
+    await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
